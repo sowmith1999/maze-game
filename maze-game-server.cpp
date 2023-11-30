@@ -5,7 +5,7 @@
 // For use with CS 660/760. All rights reserved.
 //
 
-#include </root/maze-game/maze-game-server.hpp>
+#include </root/my_game/maze-game-server.hpp>
 
 Line::Line(double x0, double y0, double x1, double y1)
     : data{x0, y0, x1, y1}
@@ -799,11 +799,11 @@ void Game::renderloop3(Game *self)
       // Logs
       msg->screen->fontPointsize(30);
       for (int i = 0; i < msg->log0.size(); ++i)
-        msg->screen->annotate(msg->log0[i],
+        msg->screen->annotate(msg->log0[i].substr(0,20),
                               Geometry(1920 - 1080 - 15 * 3 - dsz, 30, 1080 + dsz + 15 * 2 - 10, 5 + i * 30),
                               WestGravity);
       for (int i = 0; i < msg->log1.size(); ++i)
-        msg->screen->annotate(msg->log1[i],
+        msg->screen->annotate(msg->log1[i].substr(0,20),
                               Geometry(1920 - 1080 - 15, 30, 1080 + 7, dsz + 15 + 120 + i * 30),
                               WestGravity);
 
@@ -1446,13 +1446,16 @@ int main(int argc, char **argv)
 
   if (verbose)
     cout << "GraphicsMagick Initialized" << endl;
-
+// First argument is path to the maze
+// second argument is the location of the video output
+// third argument is agent-1 and for two player game 4th argument is agent - 2
+  std::cout << "The frame limit is" << framelimit << std::endl;
   try
   {
-    if (argc == 2)
+    if (argc == 4)
     {
       // Game 1, initialize maze, players (w/ subprocesses), etc
-      Game game("mazepool/0.maze", argv[1]);
+      Game game(argv[1], argv[3]);
 
       // Short pause to let subprocesses boot up
       this_thread::sleep_for(chrono::milliseconds(250));
@@ -1460,12 +1463,19 @@ int main(int argc, char **argv)
       // Start simulating the game
       game.play1();
     }
-    else if (argc == 3) // Two player game
+    else if (argc == 5) // Two player game
     {
       // Game 2, intialize maze, players (w/ subprocesses), etc
-      Game game("mazepool/0.maze", argv[1], argv[2]);
+      Game game(argv[1], argv[3], argv[4]);
 
       game.play2();
+      int winner = game.getWinner();
+        // Create and open a text file
+      ofstream resultFile("out.txt");
+
+      resultFile << to_string(winner);
+      // Close the file
+      resultFile.close();
       std::cout << "Beautiful exit" << std::endl;
     }
     else
@@ -1475,8 +1485,8 @@ int main(int argc, char **argv)
     }
 
     // Can render the frames as an mp4 once ~Game() returns:
-    system((string("ffmpeg -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p out.mp4")).c_str());
-    system("tar -czvf out.mp4.tar.gz out.mp4");
+    system((string("ffmpeg -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + argv[2]).c_str());
+    // system("tar -czvf out.mp4.tar.gz out.mp4");
     cout << "Rendered output saved to out.mp4 and out.mp4.tar.gz" << endl;
   }
   catch (Exception &error_)

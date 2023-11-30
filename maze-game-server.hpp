@@ -34,7 +34,7 @@ using namespace boost::process;
 
 #define frame_ms 600
 #define frame_per_sec 18
-#define gamelimit_sec 240
+#define gamelimit_sec 5
 #define framelimit (gamelimit_sec * frame_per_sec)
 
 #define gameX(x) (15 + x * ((renderW - 30.0) / tileW))
@@ -409,7 +409,6 @@ private:
 
   void winningScreen();
 
-  int getWinner();
 
 public:
   Game(string mazepath, string agentcmd);
@@ -427,6 +426,8 @@ public:
   void removeTWall(TWall *twall);
 
   bool isWall(double x0, double y0, double x1, double y1);
+  
+  int getWinner();
 
   void play1();
 
