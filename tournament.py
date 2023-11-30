@@ -120,22 +120,23 @@ class Match:
                 self.comment += f"{self.player2.group_num} won"
     
     def check_player(self):
-        p1_exitcode, p1_output = self.container.exec_run(f"ps -p {self.player1_pid}")
-        p2_exitcode, p2_output = self.container.exec_run(f"ps -p {self.player2_pid}")
-        if p1_exitcode: # meaning the bot has exited
-            self.stop = True
-            self.winner = 2
-            self.comment += f" player from {self.player1.group_num} exited "
-            if p2_exitcode:
+        if(self.container.attrs['State']['Running']):
+            p1_exitcode, p1_output = self.container.exec_run(f"ps -p {self.player1_pid}")
+            p2_exitcode, p2_output = self.container.exec_run(f"ps -p {self.player2_pid}")
+            if p1_exitcode: # meaning the bot has exited
+                self.stop = True
+                self.winner = 2
+                self.comment += f" player from {self.player1.group_num} exited "
+                if p2_exitcode:
+                    self.comment += f" player from {self.player2.group_num} exited "
+                    self.winner = -1
+                return (False, False)
+            elif p2_exitcode:
+                self.stop = True
+                self.winner = 1
                 self.comment += f" player from {self.player2.group_num} exited "
-                self.winner = -1
-            return (False, False)
-        elif p2_exitcode:
-            self.stop = True
-            self.winner = 1
-            self.comment += f" player from {self.player2.group_num} exited "
-            return (False, False)
-        return (True, True)
+                return (False, False)
+            return (True, True)
     
     def __str__(self):
         return f"""Match between {self.player1.group_num} and {self.player2.group_num} on maze {self.maze.maze_num}
