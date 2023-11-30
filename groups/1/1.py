@@ -7,7 +7,7 @@ import sys
 import time
 from timeit import default_timer as timer
 
-PATHS_BEFORE_DTP = 2
+PATHS_BEFORE_DTP = 3
 
 class Bot:
     def __init__(self, W):
@@ -399,7 +399,7 @@ class Bot:
         minIndex = 0
         minPath = []
 
-        for i in range(self.numPaths):
+        for i in range(len(self.paths)):
             if self.paths[i][1] < minCost and len(self.paths[i][0]) > self.W-1:
                 minCost = self.paths[i][1] # !!
                 minIndex = i
@@ -474,6 +474,7 @@ class Bot:
         self.pathcost = len(self.moves)
         self.step(self.currentTile())
         print(f"comment bot moves[] after swapping: {self.moves} | pathcost: {self.pathcost}",flush=True)
+        for move in self.moves: self.seen.add(move)
         for successor in bot.successors():
             # if successor not in self.moves and successor not in self.dead:
             frontier.put((self.eval(successor),successor))
@@ -546,7 +547,7 @@ while True:
                     print(f"comment searching timeDIF: {_timeDif} seconds, trying freeze move",flush=True)
                     # if bot.currentTile() != bot.moves[-1]: print("toward %s %s" % (bot.moves[-1][0]+0.5,bot.moves[-1][1]+0.5), flush=True)
                     # else: bot.centerSelf()
-                    print("toward %s %s" % (x,y), flush=True)
+                    print("toward %s %s" % (int(x)+0.5,int(y)+0.5), flush=True)
                     time.sleep(0.25)
                     
                     if bot.currentTile() in [(0,0),(10,10)]:

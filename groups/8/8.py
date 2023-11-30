@@ -1,179 +1,328 @@
-import sys
-import select
-import time
-import random
-import copy
-import queue
+from sys import stdin
+from select import select
+from time import sleep
+from math import inf
 
-# Current exact position
-current_x = 0.5
-current_y = 0.5
-
-# Last tile "reached" (i.e., being close enough to the center)
-last_tile_y = -1
-last_tile_x = -1
-
-# Goal tile position
-goal_x = 10
-goal_y = 10
-
-# Set of walls known
-walls = set()
-for i in range(0, 11):
-    walls |= {(i, 0, i + 1, 0), (i, 11, i + 1, 11), (0, i, 0, i + 1), (11, i, 11, i + 1)}
-
-# DFS tree
-plan = []
-visited_tiles = set()
-dead_ends = set()
-
-# Coin handling and temporary walls
-coins = 0
-temp_walls = set()
-set_wall = 0
+TOP = 0
+END = -1
 
 class AstarBot:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+    def __init__(self):
+        # initializing bot position.
+        self.x = 0.5
+        self.y = 0.5
+        self.tx = -1
+        self.ty = -1
+        self.home_x = 0
+        self.home_y = 0
+        
+        # storing bot's plan.
         self.plan = []
-        self.cost = 0
-
-    def available_actions(self):
-        action_set = []
-        if (self.x, self.y - 1) not in dead_ends | visited_tiles and (self.x, self.y, self.x + 1, self.y) not in walls:
-            action_set.append((self.x, self.y - 1))  # Move up
-        if (self.x, self.y + 1) not in dead_ends | visited_tiles and (self.x, self.y + 1, self.x + 1, self.y + 1) not in walls:
-            action_set.append((self.x, self.y + 1))  # Move down
-        if (self.x - 1, self.y) not in dead_ends | visited_tiles and (self.x, self.y, self.x, self.y + 1) not in walls:
-            action_set.append((self.x - 1, self.y))  # Move left
-        if (self.x + 1, self.y) not in dead_ends | visited_tiles and (self.x + 1, self.y, self.x + 1, self.y + 1) not in walls:
-            action_set.append((self.x + 1, self.y))  # Move right
-        return action_set
-
-    def generate_successors(self):
-        successor_set = []
-        for action in self.available_actions():
-            successor_set.append(self.bot_move(action[0], action[1]))
-        return successor_set
-
-    def bot_move(self, new_x, new_y):
-        bot_movement = copy.deepcopy(self)
-        bot_movement.x = new_x
-        bot_movement.y = new_y
-        bot_movement.cost = self.cost + 1
-        bot_movement.plan.append((new_x, new_y))
-        return bot_movement
-
-    def __lt__(self, other):
-        return self.eval() < other.eval()
-
-    def heurestics(self):
-        distance = abs(goal_x - self.x) + abs(goal_y - self.y)
-        return distance
-
-    def eval(self):
-        return self.cost + self.heurestics()
-
-def path_planning(start_position):
-    global dead_ends
-    bot = AstarBot(start_position[0], start_position[1])
-    frontier = queue.PriorityQueue()
-    frontier.put(bot)
-    while not frontier.empty():
-        current_bot_movement = frontier.get()
-        if current_bot_movement.heurestics() == 0:
-            return current_bot_movement
-
-        if len(current_bot_movement.available_actions()) == 0:
-            dead_ends |= {(current_bot_movement.x, current_bot_movement.y)}
-            continue
-
-        for successor in current_bot_movement.generate_successors():
-            frontier.put(successor)
-    return None
-
-def is_move_invalid(from_position, to_position):
-    from_x, from_y = from_position[0], from_position[1]
-    to_x, to_y = to_position[0], to_position[1]
-
-    if (to_y - from_y == 1) and (from_x, from_y + 1, from_x + 1, from_y + 1) in walls:
-        return True
-    elif (to_x - from_x == 1) and (from_x + 1, from_y, from_x + 1, from_y + 1) in walls:
-        return True
-    elif (to_y - from_y == -1) and (from_x, from_y, from_x + 1, from_y) in walls:
-        return True
-    elif (to_x - from_x == -1) and (from_x, from_y, from_x, from_y + 1) in walls:
-        return True
-    else:
-        return False
+        
+        # tracking dead_ends, walls. visited tiles
+        
+        self.seen = set()
+        self.dead = set()
+        self.walls = set()
+        
+        # initilatize pathcost,coinhandling,temp walls
+        
+        self.path_cost = 0
+        self.coins_collected = 0
+        self.timed_walls = set()
+        self.timed_dead_ends = set()
+        self.temp_cost = 0
+        self.temp_wall_placed = False
+        self.wall_set_ago = 0
+        self.wall_available = False
     
-# Introduce ourselves, all friendly-like
-print("himynameis DFS-bot", flush=True)
+    def start_bot(self):
+        #start the bot and enter the main loop
+        #Introduce ourselves, all friendly like
+        print("himynameis aStarBot", flush=True)
+        sleep(0.25)
+        self.main()
+    
+    def read_input(self):
+        # read the inp from the stdin
+        while select([stdin,],[],[],0.0)[0]:
+            obs = stdin.readline()
+            obs = obs.split(" ")
+            if obs == []:
+                continue
+            # 
+            if obs[0] == "bot":
+                #update our own position
+                self.x = float(obs[1])
+                self.y = float(obs[2])
+                self.coins_collected = int(obs[3])
+                if not ((int(self.x) != self.tx or int(self.y) != self.ty) and ((self.x-(int(self.x)+0.5))**2 + (self.y-(int(self.y)+0.5))**2)**0.5 < 0.2):
+                    continue
+                self.tx = int(self.x)
+                self.ty = int(self.y)
+                if self.plan != []:
+                    continue
+                self.plan = [(self.tx,self.ty)]
+                self.home_x = self.tx
+                self.home_y = self.ty
+                self.seen = set(self.plan)
+                continue
 
-# Wait for some initial sense data
-time.sleep(0.25)
+            if obs[0] == "wall":
+                #ensure every wall we see is tracked in our walls set.
+                x0 = int(float(obs[1]))
+                y0 = int(float(obs[2]))
+                x1 = int(float(obs[3]))
+                y1 = int(float(obs[4]))
+                self.walls |= {(x0,y0,x1,y1)}
+                continue
 
-while True:
-    # While there is new input on stdin:
-    while select.select([sys.stdin, ], [], [], 0.0)[0]:
-        # Read and process the next 1-line observation
-        observation = sys.stdin.readline()
-        observation = observation.split(" ")
-        if observation == []:
-            pass
-        elif observation[0] == "bot":
-            # Update bot's position and coins count
-            current_x = float(observation[1])
-            current_y = float(observation[2])
-            coins = int(observation[3])
-            # Update the latest tile reached once firmly on the inside of the tile
-            if (
-                (int(current_x) != last_tile_x or int(current_y) != last_tile_y)
-                and ((current_x - (int(current_x) + 0.5)) ** 2 + (current_y - (int(current_y) + 0.5)) ** 2) ** 0.5 < 0.2
-            ):
-                last_tile_x = int(current_x)
-                last_tile_y = int(current_y)
-                if plan == []:
-                    plan = [(last_tile_x, last_tile_y)]
-                    visited_tiles = set(plan)
-        elif observation[0] == "wall":
-            # Update set of walls
-            x0 = int(float(observation[1]))
-            y0 = int(float(observation[2]))
-            x1 = int(float(observation[3]))
-            y1 = int(float(observation[4]))
-            walls |= {(x0, y0, x1, y1)}
-        elif observation[0] == "twall":
-            # Handle temporary walls
-            if float(observation[3]) > 12 and set_wall == 0:
-                x = int(float(observation[1]))
-                y = int(float(observation[2]))
-                temp_walls |= {(x, y)}
+            if obs[0] == "twall":
+                if float(obs[3]) <= 12 or self.wall_set_ago != 0:
+                    continue
+                
+                self.temp_wall_placed = True
+                self.x = int(float(obs[1]))
+                self.y = int(float(obs[2]))
+                self.timed_walls |= {(self.x,self.y)}
+                continue
+    
+    def block_enemy(self):
+        if self.coins_collected < 6:
+            return
+        wall_set = False
+        
+        end_x, end_y = self.plan[END]
+        prev_x, prev_y = self.plan[END-1]
+        
+        def create_temp_wall(direction):
+            match direction:
+                case "u":
+                    print("block {0} {1} u".format(end_x, end_y), flush=True)
+                case "d":
+                    print("block {0} {1} d".format(end_x, end_y), flush=True)
+                case "l":
+                    print("block {0} {1} l".format(end_x, end_y), flush=True)
+                case "r":
+                    print("block {0} {1} r".format(end_x, end_y), flush=True)
+            
+            nonlocal wall_set
+            wall_set = True
+                    
+        
+        if self.wall_available:
+            if(end_x == 1) and (end_y == 0):
+                create_temp_wall("l")
+            if(end_x == 0) and (end_y == 1):
+                create_temp_wall("u")
+            if(end_x == 10) and (end_y == 9):
+                create_temp_wall("d")
+            if(end_x == 9) and (end_y == 10):
+                create_temp_wall("r")
+            self.wall_available = False
 
-    # If we've achieved our goal, update our plan and issue a new command
-    if len(plan) > 0 and plan[-1] == (last_tile_x, last_tile_y):
-        if visited_tiles > set() or len(plan) == 1:
-            visited_tiles |= {(last_tile_x, last_tile_y)}
+        if(prev_x == 0) and (prev_y == 0):
+            if(end_x == 1) and (end_y == 0):
+                create_temp_wall("l")
+            if(end_x == 0) and (end_y == 1):
+                create_temp_wall("u")
+        
+        if(prev_x == 10) and (prev_y == 10):
+            if(end_x == 10) and (end_y == 9):
+                create_temp_wall("d")
+            if(end_x == 9) and (end_y == 10):
+                create_temp_wall("r")
+        
+        if wall_set:
+            self.wall_set_ago = 5
+    
+    def update_deadend(self):
+        planset = set(self.plan)
+        self.dead = set()
+        for i in range(11):
+            for j in range(11):
+                if (i,j) not in planset:
+                    self.dead |= {(i,j)}
+        self.seen = set()
+        self.wall_available = True
+    
+    def eval_move1(self):
+        possible_moves = [
+            (self.tx, self.ty + 1, 0.5, self.tx, self.ty+1, self.tx+1, self.ty+1),
+            (self.tx + 1, self.ty, 0.5, self.tx+1, self.ty, self.tx+1, self.ty+1),
+            (self.tx, self.ty - 1, 1, self.tx, self.ty, self.tx+1, self.ty),
+            (self.tx - 1, self.ty, 1, self.tx, self.ty, self.tx, self.ty+1)
+        ]
 
-        if abs(plan[-1][0] - plan[0][0]) == abs(plan[-1][1] - plan[0][1]) == 10:
-            planset = set(plan)
-            for i in range(11):
-                for j in range(11):
-                    if (i, j) not in planset:
-                        dead_ends |= {(i, j)}
-            visited_tiles = set()
+        best_move = None
+        minimum_distance = inf
 
-        if len(visited_tiles) > 0:
-            grid_bot = path_planning((last_tile_x, last_tile_y))
-            if grid_bot is not None:
-                plan.append((grid_bot.plan[0]))
+        for move in possible_moves:
+            new_tx, new_ty, factor, wall1, wall2, wall3, wall4 = move
+            if len(self.seen) > 0 and (new_tx, new_ty) not in self.dead.union(self.seen) and (
+                    wall1, wall2, wall3, wall4) not in self.walls:
+                current_distance = (self.path_cost * 3) + (
+                        ((new_tx - 10)**2 + (new_ty - 10)**2) * factor)
+                if current_distance < minimum_distance:
+                    minimum_distance = current_distance
+                    best_move = (new_tx, new_ty)
+
+        return best_move if best_move is not None else False
+
+    def eval_move2(self):
+        possible_moves = [
+            (self.tx, self.ty + 1, 0.5, self.tx, self.ty+1, self.tx+1, self.ty+1),
+            (self.tx + 1, self.ty, 0.5, self.tx+1, self.ty, self.tx+1, self.ty+1),
+            (self.tx, self.ty - 1, 1, self.tx, self.ty, self.tx+1, self.ty),
+            (self.tx - 1, self.ty, 1, self.tx, self.ty, self.tx, self.ty+1)
+        ]
+        
+        best_move = None
+        minimum_distance = inf
+        
+        for move in possible_moves:
+            new_tx, new_ty, factor, wall1, wall2, wall3, wall4 = move
+            if len(self.seen) > 0 and (new_tx, new_ty) not in self.timed_dead_ends.union(self.seen).union(self.timed_walls) and (
+                    wall1, wall2, wall3, wall4) not in self.walls:
+                current_distance = (self.temp_cost * 3) + (
+                        ((new_tx - 10)**2 + (new_ty - 10)**2) * factor)
+                if current_distance < minimum_distance:
+                    minimum_distance = current_distance
+                    best_move = (new_tx, new_ty)
+        
+        return best_move if best_move is not None else False
+
+    def eval_move3(self):
+        possible_moves = [
+            (self.tx, self.ty + 1, 1, self.tx, self.ty+1, self.tx+1, self.ty+1),
+            (self.tx + 1, self.ty, 1, self.tx+1, self.ty, self.tx+1, self.ty+1),
+            (self.tx, self.ty - 1, 0.5, self.tx, self.ty, self.tx+1, self.ty),
+            (self.tx - 1, self.ty, 0.5, self.tx, self.ty, self.tx, self.ty+1)
+        ]
+        
+        best_move = None
+        minimum_distance = inf
+        
+        for move in possible_moves:
+            new_tx, new_ty, factor, wall1, wall2, wall3, wall4 = move
+            if len(self.seen) > 0 and (new_tx, new_ty) not in self.dead.union(self.seen) and (
+                    wall1, wall2, wall3, wall4) not in self.walls:
+                current_distance = (self.path_cost * 3) + (
+                        (new_tx**2 + new_ty**2) * factor)
+                if current_distance < minimum_distance:
+                    minimum_distance = current_distance
+                    best_move = (new_tx, new_ty)
+
+        return best_move if best_move is not None else False
+
+    def eval_move4(self):
+        possible_moves = [
+            (self.tx, self.ty + 1, 1, self.tx, self.ty+1, self.tx+1, self.ty+1),
+            (self.tx + 1, self.ty, 1, self.tx+1, self.ty, self.tx+1, self.ty+1),
+            (self.tx, self.ty - 1, 0.5, self.tx, self.ty, self.tx+1, self.ty),
+            (self.tx - 1, self.ty, 0.5, self.tx, self.ty, self.tx, self.ty+1)
+        ]
+        
+        best_move = None
+        minimum_distance = inf
+        
+        for move in possible_moves:
+            new_tx, new_ty, factor, wall1, wall2, wall3, wall4 = move
+            if len(self.seen) > 0 and (new_tx, new_ty) not in self.timed_dead_ends.union(self.seen).union(self.timed_walls) and (
+                    wall1, wall2, wall3, wall4) not in self.walls:
+                current_distance = (self.temp_cost * 3) + (
+                        (new_tx**2 + new_ty**2) * factor)
+                if current_distance < minimum_distance:
+                    minimum_distance = current_distance
+                    best_move = (new_tx, new_ty)
+        
+        return best_move if best_move is not None else False
+
+    def actions(self):
+        if len(self.plan) == 0:
+            return
+        if self.plan[END] != (self.tx,self.ty):
+            return
+        
+
+        if self.wall_set_ago > 0:
+            self.wall_set_ago -= 1
+        self.seen |= {(self.tx,self.ty)}
+
+        if(self.plan[END][0] == self.home_x) and (self.plan[END][1] == self.home_y):
+            self.seen = {(self.tx,self.ty)}
+            if self.home_x == 0:
+                self.dead -= {(10,10)}
             else:
-                visited_tiles.discard(plan[-1])
-                plan = plan[:-1]
+                self.dead -= {(0,0)}
+            self.timed_dead_ends = set()
+            self.timed_walls = set()
+            self.temp_cost = 0
+            self.temp_wall_placed = False
 
-        print("toward %s %s" % (plan[-1][0] + 0.5, plan[-1][1] + 0.5), flush=True)
-    elif len(plan) > 1 and (is_move_invalid(plan[-2], plan[-1])):
-        plan = plan[:-1]
-    print("", flush=True)
-    time.sleep(0.125)
+
+        if len(self.plan) > 2:
+            self.block_enemy()
+        if self.home_x == 0:
+            if(self.plan[END][0] == 10) and (self.plan[END][1] == 10):
+                self.update_deadend()
+            if not self.temp_wall_placed:
+                
+                best_move = self.eval_move1()
+                if best_move:
+                    self.plan.append(best_move)
+                else:
+                    self.dead |= {(self.tx,self.ty)}
+                    self.plan = self.plan[:-1]
+                self.path_cost += 1
+
+
+            if self.temp_wall_placed:
+                
+                best_move = self.eval_move2()
+                if best_move:
+                    self.plan.append(best_move)
+                else:
+                    self.timed_dead_ends |= {(self.tx,self.ty)}
+                    self.plan = self.plan[:-1]
+                self.temp_cost += 1
+
+
+        if self.home_x == 10:
+            if(self.plan[END][0] == 0) and (self.plan[END][1] == 0):
+                self.update_deadend()
+            if not self.temp_wall_placed:
+                
+                best_move = self.eval_move3()
+                if best_move:
+                    self.plan.append(best_move)
+                else:
+                    self.dead |= {(self.tx,self.ty)}
+                    self.plan = self.plan[:-1]
+                self.path_cost += 1
+
+
+            if self.temp_wall_placed:
+                
+                best_move = self.eval_move4()
+                if best_move:
+                    self.plan.append(best_move)
+                else:
+                    self.timed_dead_ends |= {(self.tx,self.ty)}
+                    self.plan = self.plan[:-1]
+                self.temp_cost += 1
+            
+
+        print("toward {0} {1}".format(self.plan[END][0]+0.5, self.plan[END][1]+0.5), flush=True)
+    
+    def main(self):
+        while True:
+            self.read_input()
+            self.actions()
+            
+            print("", flush=True)
+            sleep(0.125)
+
+
+bl = AstarBot()
+bl.start_bot()

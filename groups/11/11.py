@@ -1,52 +1,55 @@
-
 import sys
 import select
 import time
 import random
+import queue
 
-
-# current exact position
-x = 0.5
-y = 0.5
-home_x,home_y = 0,0
-
-# last tile "reached" (i.e., being close enough to center)
-ty = -1
-tx = -1
-
-# set of walls known
+x,y = 0.5, 0.5 # current exact position
+ty,tx = -1, -1 # last tile reached, upper left corner of the tile reached
 walls = set()
-for i in range(0,11):
-  walls |= {(i,0,i+1,0), (i,11,i+1,11), (0,i,0,i+1), (11,i,11,i+1)}
-
+home_x, home_y = 0,0
+goal_x,goal_y = 10,10
 # DFS tree
-plan = [] 
+plan = []
 seen = set()
 dead = set()
+frontier=queue.PriorityQueue()
+going_back=0
+reached=0
+two_paths=[]
+initial_check = 1
 
-# introduce ourselves, all friendly like
-print("himynameis Akshar", flush=True)
+def outer_walls():
+  global walls
+  for i in range(0,11):
+    walls |= {(i,0,i+0,0), (i,11,i+1,11), (0,i,0,i+1), (11,i,11,i+1)}
 
-# Wait a few seconds for some initial sense data
-time.sleep(0.25)
-
-while True:
-  # while there is new input on stdin:
+def updatesensedata():
+  global x, y, home_x, home_y, tx, ty, walls, plan, seen, dead, goal_x, goal_y, initial_check
+  # print("comment : Inside the fuck cond", flush=True)
   while select.select([sys.stdin,],[],[],0.0)[0]:
     # read and process the next 1-line observation
     obs = sys.stdin.readline()
-    obs = obs.split(" ")
+    obs = obs.split(" ")  
     if obs == []: pass
     elif obs[0] == "bot":
       # update our own position
       x = float(obs[1])
       y = float(obs[2])
+
       # print("comment now at: %s %s" % (x,y), flush=True)
       # update our latest tile reached once we are firmly on the inside of the tile
       if ((int(x) != tx or int(y) != ty) and
           ((x-(int(x)+0.5))**2 + (y-(int(y)+0.5))**2)**0.5 < 0.2):
         tx = int(x)
         ty = int(y)
+
+        if initial_check and tx == 10 and ty == 10:
+          goal_x, goal_y = 0,0
+        elif initial_check:
+          goal_x, goal_y = 10,10
+        
+        initial_check = 0
         if plan == []:
           plan = [(tx,ty)]
           home_x = tx
@@ -61,72 +64,86 @@ while True:
       x1 = int(float(obs[3]))
       y1 = int(float(obs[4]))
       walls |= {(x0,y0,x1,y1)}
+  # print("comment " + "boom" + " ".join([str(x) for x in plan]))
 
-  # if we've achieved our goal, update our plan and issue a new command
-  if len(plan) > 0 and plan[-1] == (tx,ty):
-    seen |= {(tx,ty)} # marking the tile as seen
-    # returned back to origin
-    if(plan[-1][0] == home_x) and (plan[-1][1] == home_y):
-      dead -= {(10,10)}
-      seen = {(tx,ty)}
+def dfs():
+  global x, y, tx, ty, walls, plan, seen, dead
+  if len(seen) > 0 and (tx,ty+1) not in dead|seen and (tx,ty+1,tx+1,ty+1) not in walls:
+    plan.append((tx,ty+1))  # move down
+  elif len(seen) > 0 and (tx+1,ty) not in dead|seen and (tx+1,ty,tx+1,ty+1) not in walls:
+    plan.append((tx+1,ty))  # move right
+  elif len(seen) > 0 and (tx,ty-1) not in dead|seen and (tx,ty,tx+1,ty) not in walls:
+    plan.append((tx,ty-1))  # move up
+  elif len(seen) > 0 and (tx-1,ty) not in dead|seen and (tx,ty,tx,ty+1) not in walls:
+    plan.append((tx-1,ty))  # move left
+  else: #back track
+    dead |= {(tx,ty)}
+    plan = plan[:-1]
 
-    # if we've hit our opposing corner:
-    if(plan[-1][0] == 10) and (plan[-1][1] == 10):
-      # mark all other tiles dead, this is our final path, backtrack
-      planset = set(plan)
-      dead = set()
-      for i in range(11):
-        for j in range(11):
-          if (i,j) not in planset:
-            dead |= {(i,j)} # also means, there is only one way to move
-      seen = set()
-    # for wall in wal`ls:
-    #   print("comment ",  wall[0], wall[1], wall[2], wall[3])
-    def g():
-      return len(plan)
-    
-    def h(tup):
-      return abs((10 - tup[0])) + abs((10 - tup[1]))
-    
-    def f(tup):
-      return h(tup) + g()
+def eval(tX,tY):
+  h2 = abs(goal_x-tX)+abs(goal_y-tY)
+  return h2
 
-    moves = {("down",tx,ty+1),("right",tx+1,ty),("up",tx,ty-1),("left",tx-1,ty)}
-    best = None
-    for move in moves:
-      wall = None
-      if move[0] == "down":
-        wall = (tx,ty+1,tx+1,ty+1)
-      elif move[0] == "right":
-        wall = (tx+1,ty,tx+1,ty+1)
-      elif move[0] == "up":
-        wall = (tx,ty,tx+1,ty)
-      elif move[0] == "left":
-        wall = (tx,ty,tx,ty+1)
+def A_star():
+  global tx, ty, walls, seen, dead, frontier, plan
+  frontier=queue.PriorityQueue()
+  stuck=True
 
-      if move not in dead|seen and wall not in walls:
-        if best == None:
-          best = move[1:]
-        elif f(move[1:]) < f(best):
-          best = move[1:]
+  if len(seen) > 0 and (tx,ty+1) not in dead|seen and (tx,ty+1,tx+1,ty+1) not in walls:
+    frontier.put((eval(tx,ty+1),(tx,ty+1)))
+    stuck=False
+  if len(seen) > 0 and (tx+1,ty) not in dead|seen and (tx+1,ty,tx+1,ty+1) not in walls:
+    frontier.put((eval(tx+1,ty),(tx+1,ty)))
+    stuck=False
+  if len(seen) > 0 and (tx-1,ty) not in dead|seen and (tx,ty,tx,ty+1) not in walls:
+    frontier.put((eval(tx-1,ty),(tx-1,ty)))
+    stuck=False
+  if len(seen) > 0 and (tx,ty-1) not in dead|seen and (tx,ty,tx+1,ty) not in walls:
+    frontier.put((eval(tx,ty-1),(tx,ty-1)))
+    stuck=False
+  
+  if stuck:
+    return 0
+  
+  return 1
+  
+def main():
+  global x, y, home_x, home_y, tx, ty, walls, plan, seen, dead, count, goal_x, goal_y, frontier
+  outer_walls()
+  print("himynameis BirdBot", flush=True)
+
+  time.sleep(0.25)
+  
+  select.select([sys.stdin,],[],[],0.0)[0]
+  while True:
+    count=[]
+    updatesensedata()
+    if len(plan) > 0 and plan[-1] == (tx,ty): # if bot reached latest command location
+      seen |= {(tx,ty)} # marking the tile as seen
+      print("comment tile: %s %s" % (tx,ty), flush=True)
+      # returned back to origin
+      if(plan[-1][0] == home_x) and (plan[-1][1] == home_y):
+        dead -= {(goal_x,goal_y)}
+        seen = {(tx,ty)}
+      # if we've hit our opposing corner:
+      if(plan[-1][0] == goal_x) and (plan[-1][1] == goal_y):
+        # mark all other tiles dead, this is our final path, backtrack
+        planset = set(plan)
+        dead = set()
+        for i in range(11):
+          for j in range(11):
+            if (i,j) not in planset:
+              dead |= {(i,j)} # also means, there is only one way to move
+        seen = set()
+      # dfs()
+      front = A_star()
+      if front:
+        plan.append(frontier.get()[1])
+      else:
+        dead |= {(tx,ty)}
+        plan=plan[:-1]
+      print(f"toward {plan[-1][0]+0.5} {plan[-1][1]+0.5}", flush=True)
       
-    if best != None:
-      plan.append(best)
-    else:
-    # if we cannot advance or are not pathing currently, backtrack
-      dead |= {(tx,ty)}
-      plan = plan[:-1]
-      # backtrack further, in one command, if we're
-      #   returning to start AND its in a straight line:
-      # while seen == set() and (plan[-1][0] == tx or plan[-1][1] == ty):
-      #   plan = plan[:-1]
-    
-        
-
-
-    # issue a command for the latest plan
-    print("toward %s %s" % (plan[-1][0]+0.5, plan[-1][1]+0.5), flush=True)
-  
-  print("", flush=True)
-  time.sleep(0.125)
-  
+    print("", flush=True)
+    time.sleep(0.125)
+main()

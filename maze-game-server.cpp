@@ -5,7 +5,7 @@
 // For use with CS 660/760. All rights reserved.
 //
 
-#include </root/my_game/maze-game-server.hpp>
+#include </root/maze-game/maze-game-server.hpp>
 
 Line::Line(double x0, double y0, double x1, double y1)
     : data{x0, y0, x1, y1}
@@ -391,6 +391,11 @@ Robot::Robot(string cmd, double _x, double _y, Game *_game, bool isgreen)
       observations(32 * 1024),
       messenger(readloop, this)
 {
+  std::ofstream pidfile;
+  pidfile.open("pidfile.txt", std::ios_base::app);
+
+  pidfile << to_string(proc.id()) + "\n";
+  // pidfile << "\n";
   Image fullgreenbot = Image(isgreen ? "img/greenbot.png" : "img/redbot.png");
   for (int i = 0; i < 45; ++i)
   {
@@ -1131,11 +1136,13 @@ Game::Game(string mazepath, string agent1cmd, string agent2cmd)
   addCoins(objects);
   objects.push_back(new Flag(true, 0.5, 0.5));
   objects.push_back(new Flag(false, 10.5, 10.5));
+  std::cout << "agent1cmd" << agent1cmd << std::endl;
   Robot *bot1 = new Robot(agent1cmd, 0.5, 0.5, this, true);
   players.push_back(bot1);
   objects.push_back(new Home(0.5, 0.5));
   if (verbose)
     cout << "Player 1 Initialized" << endl;
+  std::cout << "agent2cmd" << agent2cmd << std::endl;
   Robot *bot2 = new Robot(agent2cmd, 10.5, 10.5, this, false);
   players.push_back(bot2);
   objects.push_back(new Home(10.5, 10.5));
@@ -1471,7 +1478,7 @@ int main(int argc, char **argv)
       game.play2();
       int winner = game.getWinner();
         // Create and open a text file
-      ofstream resultFile("out.txt");
+      ofstream resultFile(string(argv[2]) + ".txt");
 
       resultFile << to_string(winner);
       // Close the file
@@ -1483,10 +1490,13 @@ int main(int argc, char **argv)
       cout << "Use: ./server path/to/player.py" << endl
            << endl;
     }
-
     // Can render the frames as an mp4 once ~Game() returns:
-    system((string("ffmpeg -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + argv[2]).c_str());
+    // system((string("ffmpeg -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p out.mp4")).c_str());
+    std::cout << (string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))) << std::endl;
+    // system((string("cp out.mp4 ") + string(argv[2]) + ".mp4").c_str());
+    system((string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))).c_str());
     // system("tar -czvf out.mp4.tar.gz out.mp4");
+    this_thread::sleep_for(chrono::milliseconds(1000));
     cout << "Rendered output saved to out.mp4 and out.mp4.tar.gz" << endl;
   }
   catch (Exception &error_)
