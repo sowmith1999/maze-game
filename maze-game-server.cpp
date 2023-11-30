@@ -1492,9 +1492,9 @@ int main(int argc, char **argv)
     }
     // Can render the frames as an mp4 once ~Game() returns:
     // system((string("ffmpeg -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p out.mp4")).c_str());
-    std::cout << (string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))) << std::endl;
-    // system((string("cp out.mp4 ") + string(argv[2]) + ".mp4").c_str());
-    system((string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))).c_str());
+    // std::cout << (string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))) << std::endl;
+    system((string("cp ./out/* ") + string(argv[2])).c_str());
+    // system((string("ffmpeg -y -framerate ") + to_string(frame_per_sec) + string(" -pattern_type glob -i 'out/frame*.png' -c:v libx264 -pix_fmt yuv420p ") + string(string(argv[2]) + string(".mp4"))).c_str());
     // system("tar -czvf out.mp4.tar.gz out.mp4");
     this_thread::sleep_for(chrono::milliseconds(1000));
     cout << "Rendered output saved to out.mp4 and out.mp4.tar.gz" << endl;
