@@ -5,26 +5,14 @@ import docker
 import random
 import queue, time
 from timeit import default_timer as timer
-
+import os
 def run_container(name: str, command: List[str]):
     # Create a docker client
     client = docker.from_env()
-    print("Docker container starting")
-    # container config
-    print("command is "+ ' '.join(command))
-    container_config = {
-        'image': "tournament:latest",
-        'name' : name,
-        'command' : command,
-        'mem_limit' : '5g',
-        'oom_kill_disable' : True,
-        'volumes' : {'/home/sowmith/maze-game/videos/':{'bind':'/root/videos', 'mode':'rw'}},
-        'detach' : True # runs the container in the back ground
-    }
-
+    os.system(f"docker run -v /home/sowmith/maze-game/videos/:/root/videos -d --name {name} tournament:latest {command}")
     # Run the container
-    container = client.containers.run(**container_config)
-
+    container = client.containers.get(name)
+    print(container.status)
     return container
 
 class Player:
@@ -58,7 +46,8 @@ class Match:
     
     # Takes the players and creates the ./server command
     def gen_run_cmd(self):
-        return ["./server", f"{self.maze.path_to_maze}", f"/root/videos/{self.match_title}", f"python3 {self.player1.path_to_agent}", f"python3 {self.player2.path_to_agent}"]
+        # return ["./server", f"{self.maze.path_to_maze}", f"/root/videos/{self.match_title}", f"python3 {self.player1.path_to_agent}", f"python3 {self.player2.path_to_agent}"]
+        return f"./server {self.maze.path_to_maze} /root/videos/{self.match_title} 'python3 {self.player1.path_to_agent}' 'python3 {self.player2.path_to_agent}'"
     
     def deploy(self):
         print(self.match_title+" is being started")
@@ -137,6 +126,7 @@ class Match:
                 self.comment += f" player from {self.player2.group_num} exited "
                 return (False, False)
             return (True, True)
+        return (False, False)
     
     def __str__(self):
         return f"""Match between {self.player1.group_num} and {self.player2.group_num} on maze {self.maze.maze_num}
@@ -235,7 +225,8 @@ class Manager:
             s = match.check_server()
             if match.stop or match.winner or match.TSLU > 300:
                 print(match)
-                self.monitor[i].container.kill()
+                if(self.monitor[i].container.attrs['State']['Running']):
+                    self.monitor[i].container.kill()
                 self.completed.append(self.monitor[i])
                 rem_items.append(i)
         for x in rem_items:
@@ -256,4 +247,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
