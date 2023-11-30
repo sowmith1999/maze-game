@@ -18,7 +18,7 @@ def run_container(name: str, command: List[str]):
         'command' : command,
         'mem_limit' : '5g',
         'oom_kill_disable' : True,
-        'volumes' : {'/home/sowmithk/Documents/projects/p-maze-game/maze-game/videos/':{'bind':'/root/videos', 'mode':'rw'}},
+        'volumes' : {'/home/sowmith/maze-game/videos/':{'bind':'/root/videos', 'mode':'rw'}},
         'detach' : True # runs the container in the back ground
     }
 
