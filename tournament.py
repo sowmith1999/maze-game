@@ -9,8 +9,9 @@ import os
 def run_container(name: str, command: List[str]):
     # Create a docker client
     client = docker.from_env()
-    os.system(f"docker run -v /home/sowmith/maze-game/videos/:/root/videos -d --name {name} tournament:latest {command}")
-    # Run the container
+    print(f"docker run -v /home/sowmith/maze-game/videos:/root/videos -d --name {name} tournament:latest {command}")
+    os.system(f"docker run -v /home/sowmith/maze-game/videos:/root/videos -d --name {name} tournament:latest {command}")
+
     container = client.containers.get(name)
     print(container.status)
     return container
@@ -240,10 +241,11 @@ def main():
     print("Roster is ready")
     manager = Manager(roster)
     print("Manager is ready")
-    while(manager.q.qsize()):
+    for x in manager.q:
         manager.render_loop()
         manager.do_monitor()
         time.sleep(0.25)
+        
 
 if __name__ == "__main__":
     main()
