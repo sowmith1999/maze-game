@@ -241,7 +241,7 @@ def main():
     print("Roster is ready")
     manager = Manager(roster)
     print("Manager is ready")
-    for x in manager.q:
+    while(manager.q.qsize() > 0 or len(manager.monitor) > 0):
         manager.render_loop()
         manager.do_monitor()
         time.sleep(0.25)
