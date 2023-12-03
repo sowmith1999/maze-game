@@ -211,7 +211,7 @@ class Manager:
     
     # Take 5-6 matches from queue and deploy them each and update the match with stuff form the docker
     def render_loop(self):
-        while(len(self.monitor)< 1): # max_num_workers == 6
+        while(len(self.monitor)< 8): # max_num_workers == 6
             t_match: Match = self.q.get()
             t_match.deploy()
             self.monitor.append(t_match)
